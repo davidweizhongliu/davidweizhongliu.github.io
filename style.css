@@ -53,7 +53,7 @@ header.profile {
   .avatar { width: 112px; height: 112px; }
 }
 
-h1 { font-size: 2rem; margin: 0 0 4px; font-weight: 600; }
+h1 { font-size: 2rem; margin: 0 0 4px; font-weight: 600; line-height: 1.2; text-wrap: balance; }
 h2 {
   font-size: 1.15rem;
   font-weight: 600;
@@ -86,7 +86,8 @@ ul.plain { list-style: none; padding: 0; margin: 0; }
 .post { margin-bottom: 24px; }
 .post-title { font-weight: 600; font-size: 1.05rem; }
 .post-date { font-size: 0.92rem; }
-article h1 { margin-bottom: 4px; }
+.back { display: inline-block; margin-bottom: 20px; font-size: 0.95rem; }
+article h1 { margin-bottom: 8px; }
 article .post-date { margin-bottom: 28px; }
 
 footer {
