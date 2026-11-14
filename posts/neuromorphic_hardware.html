@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sustainable AI Energy Usage: The Case for Spiking LLMs · David Weizhong Liu</title>
-  <link rel="stylesheet" href="../style.css?v=4">
+  <link rel="stylesheet" href="../style.css?v=5">
 </head>
 <body>
 <main>
@@ -18,7 +18,7 @@
 
   <article>
     <h1>Sustainable AI Energy Usage: The Case for Spiking LLMs</h1>
-    <div class="post-date">November 6, 2026</div>
+    <div class="post-date">November 14, 2026</div>
 
     <p>Up until now, the constraining factor in AI has always been compute. If you had enough GPUs or TPUs, you could train however large of an AI model you wanted for however long you wanted. This is no longer true; in late 2025, Microsoft's CEO admitted that the company had GPUs it could not use, simply because they didn’t have the power to physically turn them on. At the same time, households in the largest US grid region are paying more for electricity partly because of data centers, and AI's water footprint is approaching that of small countries. I believe this is not a temporary issue, but rather a sign that the dominant way we compute with neural networks, dense floating-point matrix multiplication on GPUs, is hitting a physical wall.</p>
 
@@ -87,6 +87,8 @@
 
     <p>The spiking model wins whenever r × T &lt; 5.1, which tells you exactly what the design target is: keep spikes rare and timesteps few. Plugging in published settings:</p>
 
+    <div class="table-wrap">
+
     <table>
       <thead>
         <tr>
@@ -103,6 +105,8 @@
       </tbody>
     </table>
 
+    </div>
+
     <p><em>Firing rates and timesteps from the TTFS paper's Table 3. Some papers use 3.7 pJ as E_MAC, which gives a break-even of 4.1 instead of 5.1.</em></p>
 
     <p>The caveat is large, and it is the reason hardware matters so much: arithmetic is not where most of the energy goes. In Horowitz's group's 45 nm numbers, a 16-bit add costs 0.18 pJ but a DRAM access costs 640 pJ, about 3,556× more (<a href="https://ar5iv.labs.arxiv.org/html/1602.04183" target="_blank" rel="noopener">Pedram et al., <em>Dark Memory</em></a>). On a GPU, a spiking model still has to stream every weight from memory, so most of the op-level savings vanish. Neuromorphic chips co-locate memory and compute in each core, which is what lets the sparsity show up as real watts saved. The TTFS authors make the same point: comparing MACs to ACs alone ignores memory traffic and neuron dynamics, and a system-level claim needs physical hardware.</p>
@@ -110,6 +114,8 @@
     <h3>2. System level</h3>
 
     <p>SpikeMLLM's co-designed accelerator gives a concrete, if simulated, system comparison on Qwen2VL-7B (<a href="https://arxiv.org/abs/2604.18610" target="_blank" rel="noopener">arXiv:2604.18610</a>):</p>
+
+    <div class="table-wrap">
 
     <table>
       <thead>
@@ -126,6 +132,8 @@
       </tbody>
     </table>
 
+    </div>
+
     <p>The authors report the two gains separately (25.8× lower power, 9.06× higher throughput), but energy per token is their product: about <strong>234× less energy per token</strong>, at roughly 1% accuracy cost. I would not quote that number without its caveats: the accelerator is a synthesized RTL design evaluated with a cycle-level simulator, not a fabricated chip, and the GPU baseline runs at batch size 1, where GPUs are notoriously wasteful. A batched GPU would close a large part of the gap. Still, even an order-of-magnitude reduction leaves more than a 20× improvement.</p>
 
     <p>The measured end of the range is more modest: 2× less energy and up to 3× more throughput, in preliminary results, for the Loihi 2 MatMul-free model against an edge GPU. At the system-peak level, Hala Point's 15 TOPS/W compares with about 2.8 TOPS/W (dense) or 5.7 TOPS/W (with sparsity) for an H100 SXM, which is rated at 1,979 dense or 3,958 sparse INT8 TOPS at up to 700 W (<a href="https://www.nvidia.com/en-us/data-center/h100.html" target="_blank" rel="noopener">NVIDIA datasheet</a>). That is a 2.7× to 5.3× advantage on paper, with the usual caveat that Intel's figure was measured on a sparse MLP and NVIDIA's are peak ratings.</p>
@@ -139,6 +147,8 @@
     <p><code>Savings = E_datacenter × s × (1 − 1/k)</code></p>
 
     <p>Using the IEA's 945 TWh for 2030, and the EIA's 2024 average of 865 kWh per month (about 10,380 kWh per year) for a US household (<a href="https://www.eia.gov/todayinenergy/detail.php?id=65244" target="_blank" rel="noopener">EIA</a>):</p>
+
+    <div class="table-wrap">
 
     <table>
       <thead>
@@ -155,6 +165,8 @@
         <tr><td>30%</td><td>142 TWh (~13.7M)</td><td>218 TWh (~21.0M)</td><td>255 TWh (~24.6M)</td></tr>
       </tbody>
     </table>
+
+    </div>
 
     <p>For reference, EPRI estimated that AI used 10% to 20% of data center energy in 2024 (<a href="https://www.everycrsreport.com/files/2026-05-12_R48646_db8a48e54b6c090ddcb06a98be9291369c834766.html" target="_blank" rel="noopener">CRS</a>), and the IEA expects AI-focused data center demand to roughly quadruple by 2030, so the 20% to 30% rows are plausible for 2030. Even the most conservative cell, 2× efficiency on 10% of the load, saves more electricity than four and a half million American homes use in a year.</p>
 

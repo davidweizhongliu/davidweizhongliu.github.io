@@ -89,6 +89,14 @@ ul.plain { list-style: none; padding: 0; margin: 0; }
 .back { display: inline-block; margin-bottom: 20px; font-size: 0.95rem; }
 article h1 { margin-bottom: 8px; }
 article .post-date { margin-bottom: 28px; }
+h3 { font-size: 1.02rem; font-weight: 600; margin: 28px 0 10px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin: 16px 0 20px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+th, td { padding: 6px 10px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+th { font-weight: 600; border-bottom: 2px solid var(--text); }
+td:not(:first-child), th:not(:first-child) { text-align: right; }
 
 footer {
   margin-top: 56px;
