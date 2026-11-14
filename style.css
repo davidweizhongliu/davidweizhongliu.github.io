@@ -97,6 +97,7 @@ table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
 th, td { padding: 6px 10px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
 th { font-weight: 600; border-bottom: 2px solid var(--text); }
 td:not(:first-child), th:not(:first-child) { text-align: right; }
+td:not(:first-child) { white-space: nowrap; }
 
 footer {
   margin-top: 56px;
