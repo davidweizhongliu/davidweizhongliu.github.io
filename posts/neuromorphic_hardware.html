@@ -20,7 +20,217 @@
     <h1>Sustainable AI Energy Usage: The Case for Spiking LLMs</h1>
     <div class="post-date">November 6, 2026</div>
 
-    <p>test</p>
+    <p>Up until now, the constraining factor in AI has always been compute. If you had enough GPUs or TPUs, you could train however large of an AI model you wanted for however long you wanted. This is no longer true; in late 2025, Microsoft's CEO admitted that the company had GPUs it could not use, simply because they didn’t have the power to physically turn them on. At the same time, households in the largest US grid region are paying more for electricity partly because of data centers, and AI's water footprint is approaching that of small countries. I believe this is not a temporary issue, but rather a sign that the dominant way we compute with neural networks, dense floating-point matrix multiplication on GPUs, is hitting a physical wall.</p>
+
+    <p>Spiking large language models, which are LLMs that communicate with sparse, binary, event-driven spikes in the same way biological neurons do, along with the neuromorphic hardware built to run them, deserve far more attention and funding than they get. In this post, I will walk through the resource problem, the recent progress on spiking LLMs and neuromorphic chips, a set of back-of-the-envelope energy calculations, and finally the obvious counterargument: spiking models are not good enough yet. My answer to that is the same answer that history has given twice already: once in hardware, and once in the math abilities of LLMs themselves.</p>
+
+    <h2>The problem: AI is now competing with people for electricity and water</h2>
+
+    <p>The International Energy Agency's <em>Energy and AI</em> report estimates that data centers used around 415 TWh in 2024, about 1.5% of global electricity, and projects that this will more than double to around 945 TWh by 2030, which is slightly more than Japan's entire electricity consumption today (<a href="https://www.iea.org/reports/energy-and-ai/executive-summary" target="_blank" rel="noopener">IEA</a>). AI is the most important driver of that growth, and in the United States, data centers account for nearly half of electricity demand growth between now and 2030. The IEA also estimates that roughly 20% of planned data center projects could face delays because the grid cannot keep up.</p>
+
+    <p>The US picture is even sharper. Lawrence Berkeley National Laboratory's report to Congress found that US data centers used 176 TWh in 2023, about 4.4% of national electricity, up from 58 TWh in 2014, and projects 325 to 580 TWh by 2028, or up to 12% of US demand (<a href="https://www.energy.gov/articles/doe-releases-new-report-evaluating-increase-electricity-demand-data-centers" target="_blank" rel="noopener">LBNL / DOE</a>). For scale, the 2023 figure was already more than all California households consume.</p>
+
+    <p>This electricity does not appear out of thin air; it is drawn from the same grid that heats homes. In PJM, the grid that serves 13 states and DC, the capacity auction price jumped from $28.92 per megawatt-day for 2024/2025 to $269.92 for 2025/2026, and then hit a federally approved cap in each of the next three auctions. PJM's independent market monitor attributes about 46% of capacity costs across the last four auctions, around $29.4 billion, to data center demand (<a href="https://krdo.com/stacker-business-economy/2026/11/09/how-data-center-demand-is-reshaping-electricity-costs-across-the-us/" target="_blank" rel="noopener">Stacker / KRDO</a>). Researchers at the Dallas Fed estimate that data centers have already raised wholesale electricity prices by 2% to 6% nationwide, and the EIA expects average residential prices to rise from 17.3 to 18.2 cents per kWh in 2026 (same source).</p>
+
+    <p>Water is the less visible half of the story. Data centers consume water directly for cooling and indirectly through the power plants that supply them. LBNL estimates that the indirect water footprint of US data centers grew from about 5.6 billion gallons in 2014 to more than 211 billion gallons in 2023 (<a href="https://levernews.com/biden-boosts-ai-despite-energy-dept-warning" target="_blank" rel="noopener">The Lever, summarizing the DOE report</a>). Li et al. project that global AI demand could account for 4.2 to 6.6 billion cubic meters of water withdrawal in 2027, more than the annual withdrawal of four to six Denmarks or half of the United Kingdom (<a href="https://arxiv.org/abs/2304.03271" target="_blank" rel="noopener">Li et al., <em>Making AI Less "Thirsty"</em></a>). They also report that one technology company's own data centers withdrew 29 billion liters and evaporated more than 23 billion liters of freshwater for cooling in 2023, nearly 80% of it potable (same source). This is drinking-quality water, taken from the same watersheds as farms, towns and ecosystems.</p>
+
+    <h2>Dark GPUs: the bottleneck is power, not silicon</h2>
+
+    <p>The most striking evidence that energy, not chips, is now the binding constraint came from Satya Nadella on the BG2 podcast. He said Microsoft may have "a bunch of chips sitting in inventory that I can't plug in," because it lacked "warm shells": data center buildings that already have power and cooling (<a href="https://www.tomshardware.com/tech-industry/artificial-intelligence/microsoft-ceo-says-the-company-doesnt-have-enough-electricity-to-install-all-the-ai-gpus-in-its-inventory-you-may-actually-have-a-bunch-of-chips-sitting-in-inventory-that-i-cant-plug-in" target="_blank" rel="noopener">Tom's Hardware</a>). Cloud providers are reportedly leaving servers idle for months while they wait for regional power constraints to be resolved (<a href="https://www.techspot.com/news/110118-microsoft-satya-nadella-power-not-chips-now-biggest.html" target="_blank" rel="noopener">TechSpot</a>).</p>
+
+    <p>This reframes the entire conversation about efficiency. When power is the cap, a data center's useful output is simply:</p>
+
+    <p><code>tokens per second = available power (W) / energy per token (J)</code></p>
+
+    <p>The grid connection is fixed for years; transformers, substations and permits do not scale on a GPU product cycle. The only part of this equation that raises output without new power is the denominator. A model-and-hardware stack that uses k times less energy per token is, in a power-constrained world, k times more AI capacity on the same plug, with k times less water and no new substation. Efficiency is no longer a nice-to-have sustainability metric; it is capacity.</p>
+
+    <h2>What a spiking LLM actually changes</h2>
+
+    <p>In a standard transformer, every neuron passes a real-valued activation forward on every token, and every one of those values is multiplied by a weight. The core operation is the multiply-accumulate (MAC). A spiking neural network (SNN) instead keeps an internal membrane potential and only emits a spike, a single binary event, when that potential crosses a threshold. Because a spike is either 0 or 1, multiplying it by a weight is just <em>adding</em> the weight; the expensive multiplier disappears and the MAC becomes an accumulate (AC). When a neuron does not spike, it costs almost nothing on event-driven hardware.</p>
+
+    <p>An intuitive way to see this is to think about how we as humans read. We do not consciously reprocess every word of a page with equal intensity; most of our neurons are quiet most of the time, and activity is concentrated where it matters. A dense transformer is the opposite: it pays full price for every neuron on every token, whether or not that neuron has anything useful to say. Spiking LLMs try to make computation as sparse as the information actually is.</p>
+
+    <h2>Where spiking language models are today</h2>
+
+    <p>In just the last two years, researchers have taken spiking networks from small image-recognition tasks to full language models:</p>
+
+    <ul>
+      <li><strong>SpikeLLM (ICLR 2025)</strong> showed the idea works on chatbot-sized models, from 7 to 70 billion parameters. Its spiking version of Meta's LLaMA-7B needed about 11 times less arithmetic than the original, while staying more accurate than a standard compression technique (<a href="https://arxiv.org/abs/2407.04752" target="_blank" rel="noopener">Xing et al.</a>).</li>
+      <li><strong>SpikingLM (ICML 2026)</strong> is a language model with every part converted to spikes. On GLUE, a standard set of language-understanding tests, it used about 9 times less energy than Google's BERT model, at the cost of a somewhat lower score (77 vs. 83 out of 100) (<a href="https://proceedings.mlr.press/v306/liang26ae.html" target="_blank" rel="noopener">Liang et al.</a>).</li>
+      <li><strong>SpikeMLLM (2026)</strong> does the same for models that understand both images and text. Its spiking versions score within about 1% of the originals, even at 72 billion parameters, and the authors also designed a custom chip for it, which I come back to below (<a href="https://arxiv.org/abs/2604.18610" target="_blank" rel="noopener">Xu et al.</a>).</li>
+      <li><strong>At most one spike per neuron (2026)</strong> takes the idea to the extreme: each artificial neuron fires at most once, and the timing of that spike carries the information. At 1.5 billion parameters it understands text about as well as a normal model but is still noticeably worse at predicting the next word, and the authors are upfront that their energy savings are estimates (<a href="https://arxiv.org/abs/2609.05151" target="_blank" rel="noopener">Zhao et al.</a>).</li>
+      <li><strong>On a real chip,</strong> in early results, a language model built for Intel's brain-inspired Loihi 2 chip was up to 3 times faster and used half the energy of a GPU built for small devices (<a href="https://arxiv.org/abs/2503.18002" target="_blank" rel="noopener">Abreu et al.</a>).</li>
+    </ul>
+
+    <h2>The hardware: Hala Point and DarwinWafer</h2>
+
+    <p>Spiking models only save energy on chips built for them: chips that do nothing when a neuron is quiet, and that keep memory right next to the processing instead of shuttling data back and forth. Those chips are getting much bigger:</p>
+
+    <ul>
+      <li><strong>Intel Hala Point (2024)</strong> links 1,152 of Intel's brain-inspired chips into a box about the size of a microwave oven. It holds 1.15 billion artificial neurons, roughly as many as an owl's brain, and draws at most 2,600 watts. Intel reports that it matches or beats GPUs on work done per watt of power, and lists language models as a future target (<a href="https://newsroom.intel.com/artificial-intelligence/intel-builds-worlds-largest-neuromorphic-system" target="_blank" rel="noopener">Intel</a>).</li>
+      <li><strong>DarwinWafer (2025)</strong>, from Zhejiang University, puts 64 brain-inspired chips onto a single 12-inch silicon wafer instead of connecting them through circuit boards, which wastes a great deal of energy and speed (<a href="https://arxiv.org/abs/2509.16213" target="_blank" rel="noopener">Zhu et al.</a>). Each operation still costs more energy than on a GPU, so its real achievement is showing these chips can be packed together at large scale. That is the same kind of unglamorous groundwork GPUs needed for a decade before modern AI took off.</li>
+    </ul>
+
+    <h2>The math: how much energy could we actually save?</h2>
+
+    <p>I look at this at three levels: individual operations, whole systems, and most importantly, the grid. Each level has different caveats, and I flag them as I go.</p>
+
+    <h3>1. Operation level</h3>
+
+    <p>The standard reference for arithmetic energy is Horowitz's 45 nm figures, which the SpikingLM paper also uses: a 32-bit floating-point multiply costs about 3.7 pJ and an add about 0.9 pJ (<a href="https://arxiv.org/abs/1602.02505" target="_blank" rel="noopener">Horowitz 2014, via Courbariaux et al.</a>). So a MAC costs about E_MAC ≈ 4.6 pJ and an accumulate E_AC ≈ 0.9 pJ.</p>
+
+    <p>For a layer with N synaptic connections, a dense ANN does N MACs. A spiking layer run for T timesteps, with average firing rate r, does on average r × T × N accumulates. So:</p>
+
+    <p><code>E_ANN = N × E_MAC</code> and <code>E_SNN = N × r × T × E_AC</code></p>
+
+    <p><code>E_ANN / E_SNN = E_MAC / (r × T × E_AC) ≈ 5.1 / (r × T)</code></p>
+
+    <p>The spiking model wins whenever r × T &lt; 5.1, which tells you exactly what the design target is: keep spikes rare and timesteps few. Plugging in published settings:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Spikes per neuron (r × T)</th>
+          <th>Compute energy vs. dense ANN</th>
+          <th>Savings</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>SpikingBERT</td><td>0.2 × 16 = 3.2</td><td>1.6× lower</td><td>37%</td></tr>
+        <tr><td>SpikeLM</td><td>0.3 × 4 = 1.2</td><td>4.3× lower</td><td>77%</td></tr>
+        <tr><td>TTFS-BERT (at most one spike)</td><td>0.80</td><td>6.4× lower</td><td>84%</td></tr>
+      </tbody>
+    </table>
+
+    <p><em>Firing rates and timesteps from the TTFS paper's Table 3. Some papers use 3.7 pJ as E_MAC, which gives a break-even of 4.1 instead of 5.1.</em></p>
+
+    <p>The caveat is large, and it is the reason hardware matters so much: arithmetic is not where most of the energy goes. In Horowitz's group's 45 nm numbers, a 16-bit add costs 0.18 pJ but a DRAM access costs 640 pJ, about 3,556× more (<a href="https://ar5iv.labs.arxiv.org/html/1602.04183" target="_blank" rel="noopener">Pedram et al., <em>Dark Memory</em></a>). On a GPU, a spiking model still has to stream every weight from memory, so most of the op-level savings vanish. Neuromorphic chips co-locate memory and compute in each core, which is what lets the sparsity show up as real watts saved. The TTFS authors make the same point: comparing MACs to ACs alone ignores memory traffic and neuron dynamics, and a system-level claim needs physical hardware.</p>
+
+    <h3>2. System level</h3>
+
+    <p>SpikeMLLM's co-designed accelerator gives a concrete, if simulated, system comparison on Qwen2VL-7B (<a href="https://arxiv.org/abs/2604.18610" target="_blank" rel="noopener">arXiv:2604.18610</a>):</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>System</th>
+          <th>Power</th>
+          <th>Throughput</th>
+          <th>Energy per token</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Qwen2VL-7B FP16 on NVIDIA A800</td><td>184 W</td><td>43.5 tokens/s</td><td>184 / 43.5 ≈ <strong>4.23 J</strong></td></tr>
+        <tr><td>SpikeMLLM accelerator (28 nm)</td><td>7.13 W</td><td>393.7 tokens/s</td><td>7.13 / 393.7 ≈ <strong>18.1 mJ</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>The authors report the two gains separately (25.8× lower power, 9.06× higher throughput), but energy per token is their product: about <strong>234× less energy per token</strong>, at roughly 1% accuracy cost. I would not quote that number without its caveats: the accelerator is a synthesized RTL design evaluated with a cycle-level simulator, not a fabricated chip, and the GPU baseline runs at batch size 1, where GPUs are notoriously wasteful. A batched GPU would close a large part of the gap. Still, even an order-of-magnitude reduction leaves more than a 20× improvement.</p>
+
+    <p>The measured end of the range is more modest: 2× less energy and up to 3× more throughput, in preliminary results, for the Loihi 2 MatMul-free model against an edge GPU. At the system-peak level, Hala Point's 15 TOPS/W compares with about 2.8 TOPS/W (dense) or 5.7 TOPS/W (with sparsity) for an H100 SXM, which is rated at 1,979 dense or 3,958 sparse INT8 TOPS at up to 700 W (<a href="https://www.nvidia.com/en-us/data-center/h100.html" target="_blank" rel="noopener">NVIDIA datasheet</a>). That is a 2.7× to 5.3× advantage on paper, with the usual caveat that Intel's figure was measured on a sparse MLP and NVIDIA's are peak ratings.</p>
+
+    <p>So a reasonable range today is <strong>2× (measured, small models) to 4–6× (op-level estimates) to 10×+ (co-designed accelerators)</strong>, with the upper end still unproven in silicon.</p>
+
+    <h3>3. Grid level</h3>
+
+    <p>To translate this to the grid, let s be the share of data center electricity spent on LLM inference that could move to spiking hardware, and k the energy-efficiency factor. Then annual savings are:</p>
+
+    <p><code>Savings = E_datacenter × s × (1 − 1/k)</code></p>
+
+    <p>Using the IEA's 945 TWh for 2030, and the EIA's 2024 average of 865 kWh per month (about 10,380 kWh per year) for a US household (<a href="https://www.eia.gov/todayinenergy/detail.php?id=65244" target="_blank" rel="noopener">EIA</a>):</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Share of data center electricity (s)</th>
+          <th>k = 2</th>
+          <th>k = 4.3</th>
+          <th>k = 10</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>10%</td><td>47 TWh (~4.6M households)</td><td>73 TWh (~7.0M)</td><td>85 TWh (~8.2M)</td></tr>
+        <tr><td>20%</td><td>95 TWh (~9.1M)</td><td>145 TWh (~14.0M)</td><td>170 TWh (~16.4M)</td></tr>
+        <tr><td>30%</td><td>142 TWh (~13.7M)</td><td>218 TWh (~21.0M)</td><td>255 TWh (~24.6M)</td></tr>
+      </tbody>
+    </table>
+
+    <p>For reference, EPRI estimated that AI used 10% to 20% of data center energy in 2024 (<a href="https://www.everycrsreport.com/files/2026-05-12_R48646_db8a48e54b6c090ddcb06a98be9291369c834766.html" target="_blank" rel="noopener">CRS</a>), and the IEA expects AI-focused data center demand to roughly quadruple by 2030, so the 20% to 30% rows are plausible for 2030. Even the most conservative cell, 2× efficiency on 10% of the load, saves more electricity than four and a half million American homes use in a year.</p>
+
+    <p>Water scales the same way. Google's own methodology estimates per-prompt water as energy per prompt times its fleet water usage effectiveness (<a href="https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference" target="_blank" rel="noopener">Google Cloud</a>), so cutting energy by k cuts operational water by roughly k too. Google measured its median Gemini text prompt at 0.24 Wh and 0.26 mL of water (<a href="https://arxiv.org/abs/2508.15734" target="_blank" rel="noopener">Elsworth et al.</a>); at k = 4.3, that becomes about 0.056 Wh and 0.06 mL. A single prompt is small, but ChatGPT alone was receiving about 2.5 billion prompts a day by mid-2025 (<a href="https://techcrunch.com/2025/07/21/chatgpt-users-send-2-5-billion-prompts-a-day/" target="_blank" rel="noopener">TechCrunch</a>). If those cost what Google's median prompt costs (an assumption, since OpenAI has not published a comparable measurement), that is about 0.6 GWh per day, or 219 GWh per year, from one product's chat traffic alone. And that is before the long-horizon agentic workloads that are now becoming normal; OpenAI's Navier–Stokes run, discussed below, reportedly generated about 130 billion output tokens on its own (<a href="https://www.hpcwire.com/bigdatawire/2026/09/15/unsolved-for-90-years-openai-says-ai-cracked-millennium-prize-problem-in-88-hours/" target="_blank" rel="noopener">HPCwire</a>).</p>
+
+    <h2>"But spiking LLMs aren't good enough"</h2>
+
+    <p>This is the strongest objection, and it is partly correct. Today's natively trained spiking language models are BERT- and GPT-2-scale. The very large spiking models (SpikeLLM, SpikeMLLM-72B) are largely converted or quantized from conventional ANNs rather than trained as SNNs from scratch. The TTFS model still has a clear perplexity gap. SpikingLM trails BERT-base by about 6 GLUE points. Training spiking networks on GPUs is slower and more expensive than training transformers, and most energy numbers in the literature are estimates rather than measurements. Nobody is going to run a frontier model on Loihi.</p>
+
+    <p>I object to this argument with two points:</p>
+
+    <h3>Point 1: This is a hardware lottery</h3>
+
+    <p>In <em>The Hardware Lottery</em> (2020), Sara Hooker describes how a research idea can win because it happens to suit the available hardware and software, rather than because it is better than the alternatives (<a href="https://arxiv.org/abs/2009.06489" target="_blank" rel="noopener">arXiv:2009.06489</a>). Her central example is deep learning itself. Backpropagation was invented in 1963 and reinvented in 1976 and 1988; deep convolutional networks were paired with backpropagation by 1989. Yet it was about three decades before deep neural networks were widely accepted, largely because CPUs, built for complex sequential instructions, were a poor fit for massively parallel matrix math. What changed was not the algorithm but the arrival of GPUs, which were designed for video games and repurposed for neural networks.</p>
+
+    <p>Hooker also notes that once hardware becomes specialized, it gets more and more expensive to stray from the beaten path. Capsule networks run reasonably well on CPUs but performance falls off a cliff on GPUs and TPUs tuned for matrix multiplication. She explicitly lists neuromorphic computing among the riskier directions that struggle for hardware funding because they are not yet commercially viable.</p>
+
+    <p>Spiking LLMs are in exactly this position. The field evaluates them almost entirely on GPUs, the one platform designed to make them look bad: GPUs reward dense, batched, synchronous matrix multiplies, and spiking models are sparse, unbatched, asynchronous and accumulate-only. Asking whether a spiking LLM beats a transformer on an H100 is like asking in 2005 whether a deep neural network beats an SVM on a CPU. The answer was "no," and the answer was beside the point.</p>
+
+    <h3>Point 2: “It can't do that” has a very short half-life</h3>
+
+    <p>I have watched this pattern play out in real time with the reasoning ability of LLMs themselves:</p>
+
+    <ul>
+      <li><strong>October 2021.</strong> OpenAI introduces GSM8K, a set of grade-school word problems. On a test drawn from it, OpenAI's best system scored 55%, nearly double a fine-tuned GPT-3, while a small sample of 9–12 year olds scored 60% (<a href="https://openai.com/index/solving-math-word-problems/" target="_blank" rel="noopener">OpenAI</a>).</li>
+      <li><strong>October 2024.</strong> Apple researchers introduce GSM-Symbolic and hypothesize that "current LLMs cannot perform genuine logical reasoning," since changing only the numbers in a problem lowers accuracy (<a href="https://arxiv.org/abs/2410.05229" target="_blank" rel="noopener">Mirzadeh et al.</a>).</li>
+      <li><strong>July 2025.</strong> AI now solves International Mathematical Olympiad problems at gold-medal level. Google DeepMind's Gemini Deep Think solved five of six problems for 35/42, a score the IMO itself graded and certified as gold; OpenAI reported the same score from its own grading (<a href="https://www.euronews.com/2025/07/22/did-google-deepmind-or-openai-win-gold-at-the-worlds-most-prestigious-math-competition" target="_blank" rel="noopener">Euronews</a>). In 2021, Paul Christiano and Eliezer Yudkowsky had put the odds of AI IMO gold by 2025 at 8% and 16% (<a href="https://www.theneuron.ai/explainer-articles/openai-or-google-or-both-just-achieved-gold-in-the-international-math-olympiad-but-who" target="_blank" rel="noopener">The Neuron</a>).</li>
+      <li><strong>August 2026.</strong> Anthropic reports that an unreleased Claude model raised the lower bound on the fraction of Riemann zeta zeros on the critical line from 41.6% to 67.2%, while saying plainly that it did not prove the Riemann hypothesis (<a href="https://www.anthropic.com/news/riemann-zeta" target="_blank" rel="noopener">Anthropic</a>).</li>
+      <li><strong>September–October 2026.</strong> AI labs begin publishing claimed solutions to Millennium Prize Problems. OpenAI says an internal model resolved the Navier–Stokes existence and smoothness problem in 88 hours with up to 10,000 agents, releasing a 166-page paper and a Lean formalization (<a href="https://www.cnn.com/2026/09/09/business/openai-millennium-problems-navier-stokes-hnk" target="_blank" rel="noopener">CNN</a>), and later claims the existence part of the Yang–Mills problem (<a href="https://papex.org/blog/has-ai-solved-a-millennium-prize-problem" target="_blank" rel="noopener">Papex</a>).</li>
+    </ul>
+
+    <p>To be clear, these are claims, not accepted results. The Clay Institute has not recognized any AI solution, experts are still checking the proofs, and some have raised concerns (<a href="https://papex.org/blog/has-ai-solved-a-millennium-prize-problem" target="_blank" rel="noopener">Papex</a>).</p>
+
+    <p>But the overall trend is hard to miss. Five years ago the question was whether LLMs could reliably do grade-school arithmetic, and two years ago a serious research group argued they could not truly reason. Today AI performs at gold-medal level at the IMO, and labs are putting forward claimed proofs of Millennium Prize Problems for mathematicians to check. Each "it cannot do X" was true when it was said, and each lasted months, not decades.</p>
+
+    <p>I see no principled reason to expect spiking models to be the exception. Their current gaps look like the gaps of an architecture that has received a tiny fraction of the engineering, data and hardware investment that transformers have, not like fundamental limits. And unlike most capability gaps, the payoff for closing this one is measured in terawatt-hours and billions of cubic meters of water.</p>
+
+    <h2>What we should do</h2>
+
+    <p>None of this means abandoning transformers tomorrow. It means treating spiking LLMs as a serious research and infrastructure bet rather than a curiosity:</p>
+
+    <ul>
+      <li><strong>Fund co-design, not just algorithms.</strong> The biggest gains in the math above come only when the model and the chip are built for each other, as in SpikeMLLM's accelerator. Hala Point and DarwinWafer show that the hardware can scale; it now needs LLM-scale workloads.</li>
+      <li><strong>Report measured energy per token alongside accuracy.</strong> Most spiking papers today report proxies. The field should hold itself to the standard that the TTFS authors set and Google's measurement paper models: full-system, on-hardware numbers.</li>
+      <li><strong>Start where the gap is smallest.</strong> Edge inference, always-on assistants and smaller task-specific models are where spiking LLMs are already competitive and where power is most constrained.</li>
+      <li><strong>Train natively at scale.</strong> Converted models prove the representations can be spiking; the open question is what a spiking model trained from scratch at billions of parameters looks like.</li>
+    </ul>
+
+    <p>AI usage grows by the day as it becomes a quintessential part of our lives, and we are powering it by taking electricity and drinking water from the people it is supposed to help. As AI resource usage moves into even longer and more power-hungry workloads, the question is no longer whether we have the ability to develop better models, but rather if we even have the energy to do so in the first place.</p>
+
+    <h2>Sources</h2>
+
+    <ul>
+      <li>IEA, <a href="https://www.iea.org/reports/energy-and-ai/executive-summary" target="_blank" rel="noopener"><em>Energy and AI</em>, Executive Summary</a> (2025)</li>
+      <li>Shehabi et al., <a href="https://eta-publications.lbl.gov/publications/2024-lbnl-data-center-energy-usage-report" target="_blank" rel="noopener"><em>2024 United States Data Center Energy Usage Report</em></a>, LBNL; <a href="https://www.energy.gov/articles/doe-releases-new-report-evaluating-increase-electricity-demand-data-centers" target="_blank" rel="noopener">DOE release</a></li>
+      <li><a href="https://levernews.com/biden-boosts-ai-despite-energy-dept-warning" target="_blank" rel="noopener">The Lever</a>, on LBNL water figures</li>
+      <li>Stacker / KRDO, <a href="https://krdo.com/stacker-business-economy/2026/11/09/how-data-center-demand-is-reshaping-electricity-costs-across-the-us/" target="_blank" rel="noopener">How data center demand is reshaping electricity costs</a> (Nov 2026)</li>
+      <li>Li, Yang, Islam, Ren, <a href="https://arxiv.org/abs/2304.03271" target="_blank" rel="noopener">Making AI Less "Thirsty"</a>, Communications of the ACM 68(7), 2025</li>
+      <li>Tom's Hardware, <a href="https://www.tomshardware.com/tech-industry/artificial-intelligence/microsoft-ceo-says-the-company-doesnt-have-enough-electricity-to-install-all-the-ai-gpus-in-its-inventory-you-may-actually-have-a-bunch-of-chips-sitting-in-inventory-that-i-cant-plug-in" target="_blank" rel="noopener">Nadella: chips in inventory I can't plug in</a>; <a href="https://www.techspot.com/news/110118-microsoft-satya-nadella-power-not-chips-now-biggest.html" target="_blank" rel="noopener">TechSpot</a></li>
+      <li>Xing et al., <a href="https://arxiv.org/abs/2407.04752" target="_blank" rel="noopener">SpikeLLM</a>, ICLR 2025</li>
+      <li>Liang et al., <a href="https://proceedings.mlr.press/v306/liang26ae.html" target="_blank" rel="noopener">SpikingLM: Towards Fully Spiking Language Model</a>, ICML 2026, PMLR 306</li>
+      <li>Xu et al., <a href="https://arxiv.org/abs/2604.18610" target="_blank" rel="noopener">SpikeMLLM</a> (2026)</li>
+      <li>Zhao, Omidi, Jafari, Naud, <a href="https://arxiv.org/abs/2609.05151" target="_blank" rel="noopener">Large Language Models with At Most One Spike per Neuron</a> (2026)</li>
+      <li>Abreu et al., <a href="https://arxiv.org/abs/2503.18002" target="_blank" rel="noopener">Neuromorphic Principles for Efficient LLMs on Intel Loihi 2</a>, ICLR 2025 Workshop</li>
+      <li>Intel, <a href="https://newsroom.intel.com/artificial-intelligence/intel-builds-worlds-largest-neuromorphic-system" target="_blank" rel="noopener">Hala Point announcement</a>; <a href="https://www.intel.com/content/www/us/en/research/neuromorphic-computing.html" target="_blank" rel="noopener">Intel Neuromorphic Computing</a></li>
+      <li>Zhu et al., <a href="https://arxiv.org/abs/2509.16213" target="_blank" rel="noopener">DarwinWafer</a> (2025)</li>
+      <li>Horowitz (2014) energy figures via <a href="https://arxiv.org/abs/1602.02505" target="_blank" rel="noopener">Courbariaux et al.</a>; Pedram et al., <a href="https://ar5iv.labs.arxiv.org/html/1602.04183" target="_blank" rel="noopener">Dark Memory</a></li>
+      <li><a href="https://www.nvidia.com/en-us/data-center/h100.html" target="_blank" rel="noopener">NVIDIA H100 specifications</a></li>
+      <li><a href="https://www.eia.gov/todayinenergy/detail.php?id=65244" target="_blank" rel="noopener">EIA, 2024 residential electricity use</a>; <a href="https://www.everycrsreport.com/files/2026-05-12_R48646_db8a48e54b6c090ddcb06a98be9291369c834766.html" target="_blank" rel="noopener">CRS, Data Centers and Their Energy Consumption</a></li>
+      <li>Elsworth et al., <a href="https://arxiv.org/abs/2508.15734" target="_blank" rel="noopener">Measuring the environmental impact of delivering AI at Google Scale</a>; <a href="https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference" target="_blank" rel="noopener">Google Cloud blog</a></li>
+      <li><a href="https://techcrunch.com/2025/07/21/chatgpt-users-send-2-5-billion-prompts-a-day/" target="_blank" rel="noopener">TechCrunch</a>, ChatGPT prompt volume</li>
+      <li>Hooker, <a href="https://arxiv.org/abs/2009.06489" target="_blank" rel="noopener">The Hardware Lottery</a> (2020)</li>
+      <li>Cobbe et al., <a href="https://openai.com/index/solving-math-word-problems/" target="_blank" rel="noopener">GSM8K / Training Verifiers</a> (2021); Mirzadeh et al., <a href="https://arxiv.org/abs/2410.05229" target="_blank" rel="noopener">GSM-Symbolic</a> (2024)</li>
+      <li><a href="https://www.euronews.com/2025/07/22/did-google-deepmind-or-openai-win-gold-at-the-worlds-most-prestigious-math-competition" target="_blank" rel="noopener">Euronews</a> and <a href="https://www.theneuron.ai/explainer-articles/openai-or-google-or-both-just-achieved-gold-in-the-international-math-olympiad-but-who" target="_blank" rel="noopener">The Neuron</a> on IMO 2025</li>
+      <li><a href="https://www.anthropic.com/news/riemann-zeta" target="_blank" rel="noopener">Anthropic</a> on the zeta-zeros result; <a href="https://www.cnn.com/2026/09/09/business/openai-millennium-problems-navier-stokes-hnk" target="_blank" rel="noopener">CNN</a>, <a href="https://www.hpcwire.com/bigdatawire/2026/09/15/unsolved-for-90-years-openai-says-ai-cracked-millennium-prize-problem-in-88-hours/" target="_blank" rel="noopener">HPCwire</a>, and <a href="https://papex.org/blog/has-ai-solved-a-millennium-prize-problem" target="_blank" rel="noopener">Papex</a> on Millennium Prize claims</li>
+    </ul>
   </article>
 
 </main>
