@@ -91,6 +91,11 @@ article h1 { margin-bottom: 8px; }
 article .post-date { margin-bottom: 28px; }
 h3 { font-size: 1.02rem; font-weight: 600; margin: 28px 0 10px; }
 
+/* Figures */
+figure { margin: 24px 0 28px; }
+figure img { display: block; width: 100%; height: auto; }
+figcaption { margin-top: 8px; font-size: 0.85rem; line-height: 1.5; color: #49505b; }
+
 /* Tables */
 .table-wrap { overflow-x: auto; margin: 16px 0 20px; }
 table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
